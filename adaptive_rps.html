@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Adaptive Self-Recursive RPS — Production Ready</title>
+<style>
+  body { font-family: Inter, Roboto, Arial, sans-serif; background:#0f1724; color:#e6eef8; margin:0; padding:20px; }
+  .container { max-width:1000px; margin:20px auto; background:linear-gradient(180deg,#071029 0%, #081424 100%); border-radius:12px; padding:18px; box-shadow:0 10px 30px rgba(2,6,23,.7); }
+  h1 { margin:0 0 10px 0; font-size:22px; }
+  p.lead { margin:6px 0 18px 0; color:#9fb1c9; }
+  .row { display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; }
+  .col { background:rgba(255,255,255,0.02); padding:12px; border-radius:8px; flex:1; min-width:260px; }
+  .controls button { padding:10px 14px; margin-right:8px; border-radius:8px; border:0; cursor:pointer; background:#0ea5a6; color:#021018; font-weight:600; }
+  .controls button.secondary { background:#475569; color:#e6eef8; }
+  .big { font-size:18px; font-weight:700; padding:12px 18px; border-radius:10px; }
+  .move-btn { padding:14px 18px; font-size:18px; border-radius:10px; border:0; cursor:pointer; }
+  .r { background:#ef4444; } .p { background:#f59e0b; } .s { background:#3b82f6; }
+  .status { margin-top:8px; font-weight:600; }
+  .stats pre { background:rgba(0,0,0,0.25); padding:10px; border-radius:6px; color:#cfe6ff; overflow:auto; }
+  label { display:block; margin-top:8px; color:#9fb1c9; font-size:13px; }
+  input[type="number"], input[type="range"] { width:100%; }
+  .bar { height:14px; border-radius:6px; background:rgba(255,255,255,0.06); overflow:hidden; }
+  .bar > i { display:block; height:100%; border-radius:6px; }
+  .weights { display:flex; gap:8px; margin-top:8px; }
+  .weights .w { flex:1; }
+  .footer { margin-top:14px; color:#9fb1c9; font-size:13px; }
+  .log { max-height:200px; overflow:auto; background:rgba(0,0,0,0.18); padding:8px; border-radius:6px; font-size:13px; }
+  .params { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .small { font-size:13px; color:#9fb1c9; }
+  .muted { color:#7b8b9c; }
+  a.download { display:inline-block; margin-top:10px; padding:8px 12px; background:#06b6d4; color:#021018; border-radius:8px; text-decoration:none; font-weight:700; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Adaptive Self‑Recursive Rock‑Paper‑Scissors</h1>
+  <p class="lead">Client-side production-ready single-file game. The agent learns online from your moves and adapts its own learning & exploration parameters.</p>
+
+  <div class="row">
+    <div class="col" style="flex:0.9 1 420px;">
+      <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+        <div>
+          <button id="btn-r" class="move-btn r">Rock (R)</button>
+        </div>
+        <div>
+          <button id="btn-p" class="move-btn p">Paper (P)</button>
+        </div>
+        <div>
+          <button id="btn-s" class="move-btn s">Scissors (S)</button>
+        </div>
+        <div style="margin-left:auto;">
+          <button id="btn-reset" class="controls-btn secondary">Reset</button>
+          <button id="btn-toggle-train" class="controls-btn" style="background:#22c55e; color:#021018; font-weight:700; border-radius:8px; padding:8px 12px;">Training: ON</button>
+        </div>
+      </div>
+
+      <div class="status" id="status">Play a move to start — the agent will learn online.</div>
+
+      <div style="margin-top:12px;">
+        <strong>Last Round:</strong>
+        <div id="last-round" class="muted small">—</div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <strong>History (recent 50)</strong>
+        <div id="log" class="log"></div>
+      </div>
+
+    </div>
+
+    <div class="col" style="flex:0.6 1 300px;">
+      <h3 style="margin-top:0">Agent Stats</h3>
+      <div class="stats">
+        <div><strong>Rounds:</strong> <span id="stat-rounds">0</span></div>
+        <div><strong>Agent wins:</strong> <span id="stat-wins">0</span></div>
+        <div><strong>User wins:</strong> <span id="stat-losses">0</span></div>
+        <div><strong>Ties:</strong> <span id="stat-ties">0</span></div>
+        <div style="margin-top:8px;"><strong>Epsilon (explore):</strong> <span id="stat-epsilon">0.20</span></div>
+        <div><strong>Recency decay:</strong> <span id="stat-decay">0.90</span></div>
+        <div><strong>Forget noise:</strong> <span id="stat-noise">0.01</span></div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <strong>User move probs (agent belief):</strong>
+        <div class="weights" id="weight-bars">
+          <div class="w"><div class="small">Rock</div><div class="bar"><i id="bar-r" style="width:33%;background:#ef4444;"></i></div></div>
+          <div class="w"><div class="small">Paper</div><div class="bar"><i id="bar-p" style="width:33%;background:#f59e0b;"></i></div></div>
+          <div class="w"><div class="small">Scissors</div><div class="bar"><i id="bar-s" style="width:33%;background:#3b82f6;"></i></div></div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <button id="btn-export" class="controls-btn secondary">Export log (.json)</button>
+        <a id="download-link" class="download" href="#" download="adaptive_rps_log.json" style="display:none">Download Log</a>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:14px;" class="col">
+    <h3 style="margin:0 0 8px 0">Agent Parameters (tweak and run)</h3>
+    <div class="params">
+      <div>
+        <label>Recency decay (0.6 - 0.99)</label>
+        <input id="inp-decay" type="number" step="0.01" min="0.6" max="0.99" value="0.90" />
+      </div>
+      <div>
+        <label>Base epsilon (explore) (0.0 - 0.8)</label>
+        <input id="inp-epsilon" type="number" step="0.01" min="0.0" max="0.8" value="0.20" />
+      </div>
+      <div>
+        <label>Epsilon min</label>
+        <input id="inp-epsmin" type="number" step="0.01" min="0.0" max="0.5" value="0.02" />
+      </div>
+      <div>
+        <label>Meta window (rounds)</label>
+        <input id="inp-meta" type="number" step="1" min="5" max="200" value="20" />
+      </div>
+      <div>
+        <label>Adapt step</label>
+        <input id="inp-adapt" type="number" step="0.01" min="0.0" max="0.5" value="0.05" />
+      </div>
+      <div>
+        <label>Forget noise</label>
+        <input id="inp-noise" type="number" step="0.001" min="0.0" max="0.2" value="0.01" />
+      </div>
+    </div>
+    <div style="margin-top:8px;" class="small muted">Tip: lower decay -> agent emphasizes recent user moves more. Increasing epsilon makes agent explore more (degrade).</div>
+  </div>
+
+  <div class="footer">
+    Single-file client-side app. No server required. To run locally: save as <code>adaptive_rps.html</code> and open in a modern browser. Use Export to save logs.
+  </div>
+</div>
+
+<script>
+(function(){
+  // Utility
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function pretty(m){ return m==='r'?'Rock': m==='p'?'Paper':'Scissors'; }
+
+  // Agent (mirrors Python logic)
+  const MOVES = ['r','p','s'];
+  const BEATS = {'r':'s','p':'r','s':'p'};
+  const LOSES_TO = {'s':'r','r':'p','p':'s'};
+
+  const state = {
+    weights: {'r':1.0,'p':1.0,'s':1.0},
+    recency_decay: 0.90,
+    epsilon: 0.20,
+    base_epsilon: 0.20,
+    epsilon_min: 0.02,
+    meta_window: 20,
+    adapt_step: 0.05,
+    forget_noise: 0.01,
+    history: [], // store last outcomes for meta window (1 agent win, 0 tie, -1 agent loss)
+    rounds: 0,
+    wins:0, losses:0, ties:0,
+    training: true,
+    log: []
+  };
+
+  // DOM refs
+  const logEl = document.getElementById('log');
+  const lastRoundEl = document.getElementById('last-round');
+  const statRounds = document.getElementById('stat-rounds');
+  const statWins = document.getElementById('stat-wins');
+  const statLosses = document.getElementById('stat-losses');
+  const statTies = document.getElementById('stat-ties');
+  const statEps = document.getElementById('stat-epsilon');
+  const statDecay = document.getElementById('stat-decay');
+  const statNoise = document.getElementById('stat-noise');
+  const barR = document.getElementById('bar-r');
+  const barP = document.getElementById('bar-p');
+  const barS = document.getElementById('bar-s');
+  const btnTrain = document.getElementById('btn-toggle-train');
+  const downloadLink = document.getElementById('download-link');
+  const dlButton = document.getElementById('btn-export');
+
+  // Input elements
+  const inpDecay = document.getElementById('inp-decay');
+  const inpEps = document.getElementById('inp-epsilon');
+  const inpEpsMin = document.getElementById('inp-epsmin');
+  const inpMeta = document.getElementById('inp-meta');
+  const inpAdapt = document.getElementById('inp-adapt');
+  const inpNoise = document.getElementById('inp-noise');
+
+  function predict_user_probs(){
+    const total = state.weights.r + state.weights.p + state.weights.s;
+    if(total <= 0) return {'r':1/3,'p':1/3,'s':1/3};
+    return {
+      r: state.weights.r/total,
+      p: state.weights.p/total,
+      s: state.weights.s/total
+    };
+  }
+
+  function choose_move(){
+    const probs = predict_user_probs();
+    // predicted user's most likely
+    let predicted = 'r';
+    if(probs.p > probs[predicted]) predicted='p';
+    if(probs.s > probs[predicted]) predicted='s';
+    const greedy = LOSES_TO[predicted]; // move that beats predicted_user
+    if(Math.random() < state.epsilon){
+      // exploration: random move
+      return MOVES[Math.floor(Math.random()*3)];
+    } else {
+      return greedy;
+    }
+  }
+
+  function update_from_observation(user_move){
+    for(const m of MOVES){
+      state.weights[m] *= state.recency_decay;
+      // small random noise
+      state.weights[m] += (Math.random()*2 - 1) * state.forget_noise;
+      if(state.weights[m] < 0.001) state.weights[m] = 0.001;
+    }
+    state.weights[user_move] += 1.0;
+    state.rounds += 1;
+  }
+
+  function record_outcome(outcome){
+    state.history.push(outcome);
+    if(outcome === 1) state.wins += 1;
+    else if(outcome === -1) state.losses += 1;
+    else state.ties += 1;
+
+    // trim history to meta_window
+    if(state.history.length > state.meta_window) state.history.shift();
+
+    if(state.history.length === state.meta_window){
+      adapt_meta();
+    }
+  }
+
+  function adapt_meta(){
+    const wins = state.history.filter(x=>x===1).length;
+    const losses = state.history.filter(x=>x===-1).length;
+    // perf metric
+    const perf = (wins - losses) / Math.max(1, state.history.length);
+    if(perf < -0.2){
+      // losing: increase sensitivity -> lower decay, reduce exploration
+      state.recency_decay = clamp(state.recency_decay - 0.05, 0.6, 0.99);
+      state.epsilon = Math.max(state.epsilon_min, state.epsilon - state.adapt_step);
+    } else if(perf > 0.2){
+      // winning too much -> degrade: increase exploration and noise
+      state.epsilon = Math.min(0.8, state.epsilon + state.adapt_step);
+      state.forget_noise = Math.min(0.1, state.forget_noise + 0.01);
+    } else {
+      // drift back to base
+      state.epsilon += (state.base_epsilon - state.epsilon) * 0.05;
+      state.forget_noise += (0.01 - state.forget_noise) * 0.02;
+    }
+    // regularize
+    regularize_weights();
+  }
+
+  function regularize_weights(){
+    const total = state.weights.r + state.weights.p + state.weights.s;
+    if(total > 1000){
+      state.weights.r /= total/100.0;
+      state.weights.p /= total/100.0;
+      state.weights.s /= total/100.0;
+    }
+  }
+
+  function resolve(agent_move, user_move){
+    if(agent_move === user_move) return 0;
+    if(BEATS[agent_move] === user_move) return 1;
+    return -1;
+  }
+
+  function render_stats(){
+    statRounds.textContent = state.rounds;
+    statWins.textContent = state.wins;
+    statLosses.textContent = state.losses;
+    statTies.textContent = state.ties;
+    statEps.textContent = state.epsilon.toFixed(3);
+    statDecay.textContent = state.recency_decay.toFixed(3);
+    statNoise.textContent = state.forget_noise.toFixed(3);
+    const probs = predict_user_probs();
+    const total = probs.r + probs.p + probs.s;
+    barR.style.width = (probs.r/total*100).toFixed(1) + '%';
+    barP.style.width = (probs.p/total*100).toFixed(1) + '%';
+    barS.style.width = (probs.s/total*100).toFixed(1) + '%';
+  }
+
+  function push_log(text){
+    state.log.unshift({t:Date.now(), msg:text});
+    if(state.log.length > 200) state.log.pop();
+    logEl.innerHTML = state.log.slice(0,50).map(x => `<div style="padding:6px 4px;border-bottom:1px solid rgba(255,255,255,0.02)"><span class="muted small">${new Date(x.t).toLocaleTimeString()}</span> — ${x.msg}</div>`).join('');
+  }
+
+  // Button handlers
+  function handle_move(user_move){
+    const agent_move = choose_move();
+    const outcome = resolve(agent_move, user_move);
+    // update training if enabled
+    if(state.training){
+      update_from_observation(user_move);
+      record_outcome(outcome);
+    } else {
+      // if not training, still count rounds and stats but don't change weights/history
+      state.rounds += 1;
+      if(outcome === 1) state.wins += 1;
+      else if(outcome === -1) state.losses += 1;
+      else state.ties += 1;
+    }
+    // log
+    const who = outcome===1 ? 'Agent' : outcome===-1 ? 'You' : 'Tie';
+    const msg = `${who} won — You: ${pretty(user_move)} | Agent: ${pretty(agent_move)} | eps=${state.epsilon.toFixed(3)} decay=${state.recency_decay.toFixed(3)}`;
+    lastRoundEl.textContent = msg;
+    push_log(msg);
+    render_stats();
+
+    // auto-show small summary of weights sometimes
+    if(state.rounds % 10 === 0){
+      push_log('Weights: r='+state.weights.r.toFixed(2)+' p='+state.weights.p.toFixed(2)+' s='+state.weights.s.toFixed(2));
+    }
+  }
+
+  document.getElementById('btn-r').addEventListener('click', ()=> handle_move('r'));
+  document.getElementById('btn-p').addEventListener('click', ()=> handle_move('p'));
+  document.getElementById('btn-s').addEventListener('click', ()=> handle_move('s'));
+
+  document.getElementById('btn-reset').addEventListener('click', ()=>{
+    state.weights = {'r':1.0,'p':1.0,'s':1.0};
+    state.recency_decay = parseFloat(inpDecay.value);
+    state.epsilon = parseFloat(inpEps.value);
+    state.base_epsilon = state.epsilon;
+    state.epsilon_min = parseFloat(inpEpsMin.value);
+    state.meta_window = parseInt(inpMeta.value);
+    state.adapt_step = parseFloat(inpAdapt.value);
+    state.forget_noise = parseFloat(inpNoise.value);
+    state.history = [];
+    state.rounds = 0; state.wins=0; state.losses=0; state.ties=0; state.log=[];
+    push_log('Reset agent and stats.');
+    render_stats();
+    lastRoundEl.textContent = 'Reset complete — play to start.';
+  });
+
+  btnTrain.addEventListener('click', ()=>{
+    state.training = !state.training;
+    btnTrain.textContent = 'Training: ' + (state.training ? 'ON' : 'OFF');
+    btnTrain.style.background = state.training ? '#22c55e' : '#ef4444';
+    push_log('Training toggled: ' + (state.training ? 'ON' : 'OFF'));
+  });
+
+  // parameter inputs live-bind
+  inpDecay.addEventListener('change', ()=> { state.recency_decay = clamp(parseFloat(inpDecay.value),0.6,0.99); render_stats(); });
+  inpEps.addEventListener('change', ()=> { state.epsilon = clamp(parseFloat(inpEps.value),0.0,0.8); state.base_epsilon = state.epsilon; render_stats(); });
+  inpEpsMin.addEventListener('change', ()=> { state.epsilon_min = clamp(parseFloat(inpEpsMin.value),0.0,0.5); render_stats(); });
+  inpMeta.addEventListener('change', ()=> { state.meta_window = clamp(parseInt(inpMeta.value),5,200); render_stats(); });
+  inpAdapt.addEventListener('change', ()=> { state.adapt_step = clamp(parseFloat(inpAdapt.value),0.0,0.5); render_stats(); });
+  inpNoise.addEventListener('change', ()=> { state.forget_noise = clamp(parseFloat(inpNoise.value),0.0,0.2); render_stats(); });
+
+  dlButton.addEventListener('click', ()=>{
+    const payload = {
+      meta: {
+        recency_decay: state.recency_decay,
+        epsilon: state.epsilon,
+        base_epsilon: state.base_epsilon,
+        epsilon_min: state.epsilon_min,
+        meta_window: state.meta_window,
+        adapt_step: state.adapt_step,
+        forget_noise: state.forget_noise,
+        rounds: state.rounds,
+        wins: state.wins,
+        losses: state.losses,
+        ties: state.ties,
+      },
+      log: state.log.slice().reverse()
+    };
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(payload, null, 2));
+    downloadLink.href = dataStr;
+    downloadLink.style.display = 'inline-block';
+    setTimeout(()=>{ downloadLink.style.display = 'none'; }, 5000);
+    push_log('Prepared export payload for download.');
+  });
+
+  // initial render
+  render_stats();
+  push_log('Agent initialized. Ready.');
+})();
+</script>
+</body>
+</html>
