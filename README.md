@@ -16,17 +16,10 @@ Download or open it in your browser.
 
 Start playing by selecting Rock, Paper, or Scissors.
 
-Keep playing and see if you can outwit the system!
+Keep playing and see if you can outwit the system! https://anirudhgangadharan.github.io/rps-adaptive-game/adaptive_rps.html
 
-How to Run Online
-You can run this game using GitHub Pages:
-
-Go to Settings > Pages
-
-Under Source, select main branch and / (root)
-
-Save, and GitHub will give you a public URL like:
-https://anirudhgangadharan.github.com/rps-adaptive-game
+ 
+ 
 
 💡 Why This Exists
 This game is a tiny experiment in building systems that learn from human behavior.
